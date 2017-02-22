@@ -4,29 +4,34 @@ import cv2
 import numpy as np
 
 from scipy.ndimage.measurements import label
+from scipy.ndimage import generate_binary_structure
+from scipy import ndimage
 
 from features import Features, BinSpatialFeatures
 from features import ColorHistFeatures, HogImageFeatures
 from boxes import WindowBoxes, WindowBoxSlice, draw_boxes
 from images import CameraImage, ImageSlice
 from search import SearchParams
-
+from collections import deque
 
 
 class VehicleDetection(object):
     """Vehicle Detection class
     holds all things to do with vehicle detection """
 
-    def __init__(self, search_params, height, width, loop=None):
+    def __init__(self, search_params, height, width, loop=None,
+                 heatmap_history_max=5):
         self.__height = height  # of images being used
         self.__width = width  # of image beinf used
         self.__search_params = search_params  # for all objects
         self.__window_boxes = WindowBoxes(height, width)
+        self.__heatmap_history_max = heatmap_history_max
 
         self.__image = None
         self.__camera_image = None
         self.__hot_windows = None
         self.__heatmap = None
+        self.__heatmap_history = deque([])
         self.__labels = None
 
         # if we dont have a coroutine loop passed in create one
@@ -75,6 +80,16 @@ class VehicleDetection(object):
         self.__heatmap = None
         self.__labels = None
 
+    def _queue_to_history(self, heatmap):
+        self.__heatmap_history.append(heatmap)
+        # only keep so many heatmaps, removed old ones [n-3,n-2,n-1,n]
+        if self.heatmap_history_count > self.__heatmap_history_max:
+            self.__heatmap_history.popleft()
+
+    @property
+    def heatmap_history_count(self):
+        return len(self.__heatmap_history)
+
     @property
     def hot_windows(self):
         if self.__hot_windows is None:
@@ -88,10 +103,28 @@ class VehicleDetection(object):
         return self.__heatmap
 
     @property
+    def heatmap_history(self):
+        # if the heatmap hasnt yet been rebuilt since the last image
+        # we need to do so first. It will appeend it to the history
+        if self.__heatmap is None:
+            self.__heatmap = self.build_heatmap()
+
+        return np.array(self.__heatmap_history)
+
+    @property
     def labels(self):
         if self.__labels is None:
-            self.__labels = label(self.heatmap)
+            hh = np.array(self.heatmap_history)
+            s = generate_binary_structure(hh.ndim, 2)
+            self.__labels = label(hh, s)
+            #self.__labels = label(self.heatmap)
         return self.__labels
+
+    @property
+    def box_variance(self):
+        lbl, nlbl = self.labels
+        return ndimage.variance(self.heatmap_history, lbl,
+                                index=np.arange(1, nlbl+1))
 
     @property
     def heatmap_decorated(self):
@@ -114,7 +147,9 @@ class VehicleDetection(object):
 
     @property
     def result(self):
-        return self.draw_labeled_bboxes(self.camera_image.image, self.labels)
+        return self.draw_labeled_bboxes(self.camera_image.image,
+                                        self.labels,
+                                        self.box_variance)
 
     @staticmethod
     def single_window_features(image_slice: ImageSlice,
@@ -192,8 +227,8 @@ class VehicleDetection(object):
 
         async def window_prediction(image_slice: ImageSlice,
                                     wbs: WindowBoxSlice):
-            clf = search_params.clf
-            X_scaler = search_params.X_scaler
+            clf = self.search_params.clf
+            X_scaler = self.search_params.X_scaler
 
             # only about 20 milliseconds difference betwween the two approaches
             # features = VehicleDetection.single_window_features(image_slice,
@@ -247,9 +282,11 @@ class VehicleDetection(object):
             return heatmap
 
         heatmap = add_heat(heatmap, self.hot_windows)
-        heatmap = apply_threshold(heatmap, 2)
+        heatmap = apply_threshold(heatmap, 3)
         heatmap = np.clip(heatmap, 0, 255)
 
+        # add this heatmap to the queue
+        self._queue_to_history(heatmap)
         return heatmap
 
     @staticmethod
@@ -264,15 +301,20 @@ class VehicleDetection(object):
         return imcopy
 
     @staticmethod
-    def draw_labeled_bboxes(img, labels):
+    def draw_labeled_bboxes(img, labels, box_variance):
         imgcopy = np.copy(img)
         # Iterate through all detected cars
         for car_number in range(1, labels[1] + 1):
+            # dont draw boxes with low variance - just noise
+            if box_variance[car_number-1] < 1.0:
+                continue
+
             # Find pixels with each car_number label value
             nonzero = (labels[0] == car_number).nonzero()
             # Identify x and y values of those pixels
             nonzeroy = np.array(nonzero[0])
-            nonzerox = np.array(nonzero[1])
+            nonzeroy = np.array(nonzero[1])
+            nonzerox = np.array(nonzero[2])
             # Define a bounding box based on min/max x and y
             bbox = ((np.min(nonzerox), np.min(nonzeroy)),
                     (np.max(nonzerox), np.max(nonzeroy)))

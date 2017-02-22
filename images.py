@@ -6,6 +6,8 @@ from features import Features, BinSpatialFeatures
 from features import ColorHistFeatures, HogImageFeatures
 from search import SearchParams
 
+from numba import jit
+
 
 class CameraImage(object):
     """holds an image and does color space conversions """
@@ -229,6 +231,7 @@ class ImageSlice(object):
 
         return self.__hog_features
 
+    @jit(cache=True)
     def hog_image(self, channel):
         image = self.image
         orient = self.__search_params.orient

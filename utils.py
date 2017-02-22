@@ -2,13 +2,11 @@ from io import BytesIO
 import cv2
 import numpy as np
 import glob
-import time
 from tqdm import tqdm
-from moviepy.editor import ImageSequenceClip, VideoFileClip
 from IPython.display import Image
 import matplotlib as mpl
-from concurrent.futures import ThreadPoolExecutor, wait, as_completed
-
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from moviepy.editor import VideoFileClip
 from features import Features
 from features import ColorHistFeatures, HogImageFeatures
 
@@ -178,8 +176,8 @@ def extract_hog_features(imgs, cspace='BGR', orient=9,
             feature_image = np.copy(image)
 
         # bsf = BinSpatialFeatures(feature_image, size=spatial_size)
-        chf = ColorHistFeatures(
-            feature_image, nbins=hist_bins, bins_range=hist_range)
+        # chf = ColorHistFeatures(
+        #     feature_image, nbins=hist_bins, bins_range=hist_range)
 
         # Call get_hog_features()
         hog_features = Features([])
@@ -194,8 +192,8 @@ def extract_hog_features(imgs, cspace='BGR', orient=9,
                 orient, pix_per_cell, cell_per_block)
 
 #         return np.concatenate((hog_features.values, chf.values))
-        features = hog_features + chf
-        return features
+        # features = hog_features + chf
+        return hog_features.features
 
     pbar = tqdm(total=len(imgs))
     with ThreadPoolExecutor() as executor:
