@@ -115,9 +115,9 @@ class VehicleDetection(object):
     def labels(self):
         if self.__labels is None:
             hh = np.array(self.heatmap_history)
-            s = generate_binary_structure(hh.ndim, 2)
+            # create a structure for connectivity
+            s = generate_binary_structure(hh.ndim, hh.ndim)
             self.__labels = label(hh, s)
-            #self.__labels = label(self.heatmap)
         return self.__labels
 
     @property
@@ -237,14 +237,17 @@ class VehicleDetection(object):
             features = await gather_features_for_prediction(image_slice,
                                                             wbs,
                                                             search_params)
+            # print(features.shape, wbs.bbox, wbs.bbox_slice)
+            try:
+                scaled_features = X_scaler.transform(features.reshape(1, -1))
 
-            scaled_features = X_scaler.transform(features.reshape(1, -1))
-
-            prediction = clf.predict(scaled_features)
-
-            if prediction == 1:
-                # print(wbs.bbox)
-                hot_windows.append(wbs.bbox)
+                prediction = clf.predict(scaled_features)
+                if prediction == 1:
+                    # print(wbs.bbox)
+                    hot_windows.append(wbs.bbox)
+            except ValueError as exc:
+                fs = "{} features.shape {} wbs.bbox {} wbs.bbox_slice"
+                print(fs.format(exc, wbs.bbox, wbs.bbox_slice))
 
         async def predict_hot_boxes(shape):
             image_slice = ImageSlice(
@@ -282,8 +285,16 @@ class VehicleDetection(object):
             return heatmap
 
         heatmap = add_heat(heatmap, self.hot_windows)
-        heatmap = apply_threshold(heatmap, 3)
+
         heatmap = np.clip(heatmap, 0, 255)
+
+        heatmap = apply_threshold(heatmap, 2)
+        # standardise heatmap
+        heatmap_std = heatmap.std(ddof=1)
+        if heatmap_std != 0.0:
+            heatmap = (heatmap-heatmap.mean())/heatmap_std
+
+        heatmap = apply_threshold(heatmap, np.max([heatmap.std(), 1.5]))
 
         # add this heatmap to the queue
         self._queue_to_history(heatmap)
@@ -305,8 +316,9 @@ class VehicleDetection(object):
         imgcopy = np.copy(img)
         # Iterate through all detected cars
         for car_number in range(1, labels[1] + 1):
-            # dont draw boxes with low variance - just noise
-            if box_variance[car_number-1] < 1.0:
+            if labels[1] == 1 and box_variance[car_number-1] < 0.1:
+                continue
+            elif box_variance[car_number-1] < 1.5:
                 continue
 
             # Find pixels with each car_number label value
@@ -315,6 +327,11 @@ class VehicleDetection(object):
             nonzeroy = np.array(nonzero[0])
             nonzeroy = np.array(nonzero[1])
             nonzerox = np.array(nonzero[2])
+
+            nonzerox_min = np.min(nonzerox)
+            nonzerox_max = np.max(nonzerox)
+            if nonzerox_max - nonzerox_min <= 128:
+                continue
             # Define a bounding box based on min/max x and y
             bbox = ((np.min(nonzerox), np.min(nonzeroy)),
                     (np.max(nonzerox), np.max(nonzeroy)))

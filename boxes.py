@@ -27,7 +27,7 @@ class WindowBoxes(object):
 
     def __init__(self, height, width):
 
-        self.__sz_dict = self._spatial_sizes_dict()
+        self.__sz_dict = WindowBoxes._spatial_sizes_dict()
         self.__wb_dict = self.build_window_boxes(height, width)
         self.__height = height
         self.__width = width
@@ -49,6 +49,7 @@ class WindowBoxes(object):
     @property
     def box_colour_dict(self):
         box_color = {}
+        box_color["tiny"] = (0, 64, 64)
         box_color["small"] = (0, 0, 128)
         box_color["smallish"] = (0, 0, 256)
         box_color["medium"] = (0, 256, 0)
@@ -84,16 +85,6 @@ class WindowBoxes(object):
 
     def bounding_box_origin(self, shape):
         return self.bounding_box(shape)[0]
-
-    @staticmethod
-    def _spatial_sizes_dict():
-        sz_dict = {}
-        sz_dict["small"] = (32, 32)
-        sz_dict["smallish"] = (64, 64)
-        sz_dict["medium"] = (128, 128)
-        sz_dict["large"] = (256, 256)
-        sz_dict["max"] = (320, 320)
-        return sz_dict
 
     @staticmethod
     def resize_64x64_ratio(shape):
@@ -151,16 +142,15 @@ class WindowBoxes(object):
             x_center = width // 2
             x, y = xy_window
             y_start = y_center
-            if y == 32:
-                y_start = y_center + y
+            if y == 16:
+                y_start = y_center + np.int(y*3)
+            elif y == 32:
+                y_start = y_center + np.int(y*1.5)
             elif y == 64:
                 y_start = y_center + np.int(y / 2)
-            elif y == 128:
-                y_start = y_center + 25
-            elif y == 256:
-                y_start = y_center
-            elif y == 384:
-                y_start = y_center
+            elif y == 48:
+                y_start = y_center + np.int(y/2)
+
             # y_stop = height - 150  # for bonnet
             # if y <= 128:
             #     y_stop = y_center + np.int(y * yc)
@@ -182,15 +172,21 @@ class WindowBoxes(object):
         sz_dict = WindowBoxes._spatial_sizes_dict()
 
         window_dict = {}
-        window_dict["small"] = find_windows(
-            height, width, xc=19.5, yc=6, xy_window=sz_dict['small'],
+        window_dict["tiny"] = find_windows(
+            height, width, xc=25, yc=8, xy_window=sz_dict['tiny'],
             xy_overlap=(0.5, 0.5))
-        window_dict["smallish"] = find_windows(
-            height, width, xc=9.5, yc=2, xy_window=sz_dict['smallish'],
+        window_dict["small"] = find_windows(
+            height, width, xc=17, yc=4, xy_window=sz_dict['small'],
             xy_overlap=(0.7, 0.7))
+        window_dict["smallish"] = find_windows(
+            height, width, xc=9, yc=2.5, xy_window=sz_dict['smallish'],
+            xy_overlap=(0.8, 0.8))
         window_dict["medium"] = find_windows(
-            height, width, xc=4, yc=1.25, xy_window=sz_dict['medium'],
-            xy_overlap=(0.9, 0.6))
+            height, width, xc=9, yc=2, xy_window=sz_dict['medium'],
+            xy_overlap=(0.8, 0.8))
+        # window_dict["medium"] = find_windows(
+        #     height, width, xc=4, yc=1.25, xy_window=sz_dict['medium'],
+        #     xy_overlap=(0.9, 0.8))
         # window_dict["large"] = find_windows(
         # height, width, xc=1.5, yc=1, xy_window=sz_dict['large'],
         # xy_overlap=(0.7,0.6))
@@ -204,12 +200,16 @@ class WindowBoxes(object):
 
         return window_dict
 
-        @staticmethod
-        def _spatial_sizes_dict():
-            sz_dict = {}
-            sz_dict["small"] = (64, 64)
-            sz_dict["smallish"] = (96, 96)
-            sz_dict["medium"] = (128, 128)
-            sz_dict["large"] = (256, 256)
-            sz_dict["max"] = (320, 320)
-            return sz_dict
+    @staticmethod
+    def _spatial_sizes_dict():
+        sz_dict = {}
+        # sz_dict["small"] = (64, 64)
+        # sz_dict["smallish"] = (96, 96)
+        # sz_dict["medium"] = (128, 128)
+        sz_dict["tiny"] = (16, 16)
+        sz_dict["small"] = (32, 32)
+        sz_dict["smallish"] = (48, 48)
+        sz_dict["medium"] = (64, 64)
+        sz_dict["large"] = (256, 256)
+        sz_dict["max"] = (320, 320)
+        return sz_dict
