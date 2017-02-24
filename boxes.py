@@ -142,16 +142,20 @@ class WindowBoxes(object):
             x_center = width // 2
             x, y = xy_window
             y_start = y_center
+            x_start = 32
             if y == 16:
                 y_start = y_center + np.int(y*2)
             elif y == 32:
                 y_start = y_center + y
+                x_start = x * 3
             elif y == 64:
                 y_start = y_center + np.int(y / 2)
             elif y == 48:
                 y_start = y_center + np.int(y/2)
+                x_start = x *2
             else:
                 y_start = y_center
+                x_start = np.int(x_center/2)
 
 
             # y_stop = height - 150  # for bonnet
@@ -165,7 +169,7 @@ class WindowBoxes(object):
             #                        xy_window=xy_window, xy_overlap=xy_overlap)
             # adjusting these windows to fit the project video
             windows = slide_window(height, width,
-                                   x_start_stop=[x_center+32,
+                                   x_start_stop=[x_center+x_start,
                                                  x_center + np.int(x * xc)],
                                    y_start_stop=[y_start,
                                                  y_center + np.int(y * yc)],

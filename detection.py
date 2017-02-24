@@ -294,7 +294,7 @@ class VehicleDetection(object):
 
         heatmap = np.clip(heatmap, 0, 255)
 
-        heatmap = apply_threshold(heatmap, 2)
+        heatmap = apply_threshold(heatmap, 4)
 
         # standardise heatmap -
         heatmap_std = heatmap.std(ddof=1)

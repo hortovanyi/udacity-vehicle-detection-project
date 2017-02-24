@@ -194,6 +194,7 @@ def extract_hog_features(imgs, cspace='BGR', orient=9,
 #         return np.concatenate((hog_features.values, chf.values))
         # features = hog_features + chf
         return hog_features.features
+        # return features
 
     pbar = tqdm(total=len(imgs))
     with ThreadPoolExecutor() as executor:
