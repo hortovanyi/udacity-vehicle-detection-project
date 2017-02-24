@@ -33,6 +33,7 @@ class VehicleDetection(object):
         self.__heatmap = None
         self.__heatmap_history = deque([])
         self.__labels = None
+        self.__image_count = 0
 
         # if we dont have a coroutine loop passed in create one
         if loop is None:
@@ -73,6 +74,7 @@ class VehicleDetection(object):
     def image(self, image):
         # make sure its a bgr image being passed in
         self.__image = image
+        self.__image_count += 1
         self.__camera_image = CameraImage(image)
 
         # new image so reset these so they are recreated next access
@@ -121,6 +123,10 @@ class VehicleDetection(object):
         return self.__labels
 
     @property
+    def labelled_boxes(self):
+        return self._extract_labeled_bboxes()
+
+    @property
     def box_variance(self):
         lbl, nlbl = self.labels
         return ndimage.variance(self.heatmap_history, lbl,
@@ -147,9 +153,9 @@ class VehicleDetection(object):
 
     @property
     def result(self):
-        return self.draw_labeled_bboxes(self.camera_image.image,
-                                        self.labels,
-                                        self.box_variance)
+        window_img = draw_boxes(self.__image, self.labelled_boxes,
+                                color=(255, 0, 0), thick=2)
+        return window_img
 
     @staticmethod
     def single_window_features(image_slice: ImageSlice,
@@ -289,12 +295,13 @@ class VehicleDetection(object):
         heatmap = np.clip(heatmap, 0, 255)
 
         heatmap = apply_threshold(heatmap, 2)
-        # standardise heatmap
+
+        # standardise heatmap -
         heatmap_std = heatmap.std(ddof=1)
         if heatmap_std != 0.0:
             heatmap = (heatmap-heatmap.mean())/heatmap_std
 
-        heatmap = apply_threshold(heatmap, np.max([heatmap.std(), 1.5]))
+        heatmap = apply_threshold(heatmap, np.max([heatmap.std(), 1]))
 
         # add this heatmap to the queue
         self._queue_to_history(heatmap)
@@ -311,11 +318,25 @@ class VehicleDetection(object):
         # Return the image copy with boxes drawn
         return imcopy
 
-    @staticmethod
-    def draw_labeled_bboxes(img, labels, box_variance):
-        imgcopy = np.copy(img)
-        # Iterate through all detected cars
+    @property
+    def label_box_planes(self):
+        labels = self.labels
+        planes = []
+
         for car_number in range(1, labels[1] + 1):
+            nonzero = (labels[0] == car_number).nonzero()
+            nonzeroz = np.array(nonzero[0])
+            planes.append((np.min(nonzeroz), np.max(nonzeroz)))
+
+        return planes
+
+    def _extract_labeled_bboxes(self):
+        labels = self.labels
+        box_variance = self.box_variance
+
+        bboxes = []
+        for car_number in range(1, labels[1] + 1):
+            # if just a few point found in the heatmap ignore
             if labels[1] == 1 and box_variance[car_number-1] < 0.1:
                 continue
             elif box_variance[car_number-1] < 1.5:
@@ -324,18 +345,25 @@ class VehicleDetection(object):
             # Find pixels with each car_number label value
             nonzero = (labels[0] == car_number).nonzero()
             # Identify x and y values of those pixels
-            nonzeroy = np.array(nonzero[0])
+            nonzeroz = np.array(nonzero[0])
             nonzeroy = np.array(nonzero[1])
             nonzerox = np.array(nonzero[2])
 
             nonzerox_min = np.min(nonzerox)
             nonzerox_max = np.max(nonzerox)
-            if nonzerox_max - nonzerox_min <= 128:
-                continue
-            # Define a bounding box based on min/max x and y
-            bbox = ((np.min(nonzerox), np.min(nonzeroy)),
-                    (np.max(nonzerox), np.max(nonzeroy)))
-            # Draw the box on the image
-            cv2.rectangle(imgcopy, bbox[0], bbox[1], (255, 0, 0), 6)
-        # Return the image
-        return imgcopy
+            nonzeroy_min = np.min(nonzeroy)
+            nonzeroy_max = np.max(nonzeroy)
+            nonzeroz_min = np.min(nonzeroz)
+            nonzeroz_max = np.max(nonzeroz)
+
+            # only add if they appear in contiguous planes
+            nplane_min_threshold = self.__heatmap_history_max - 2
+            # planes connected via label function and ndims of heatmap
+            # they start at 0 so add 1
+            nplanes = nonzeroz_max-nonzeroz_min+1
+
+            if nplanes >= nplane_min_threshold:
+                bbox = ((nonzerox_min, nonzeroy_min),
+                        (nonzerox_max, nonzeroy_max))
+                bboxes.append(bbox)
+        return bboxes

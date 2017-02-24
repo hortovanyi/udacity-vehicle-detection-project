@@ -143,13 +143,16 @@ class WindowBoxes(object):
             x, y = xy_window
             y_start = y_center
             if y == 16:
-                y_start = y_center + np.int(y*3)
+                y_start = y_center + np.int(y*2)
             elif y == 32:
-                y_start = y_center + np.int(y*1.5)
+                y_start = y_center + y
             elif y == 64:
                 y_start = y_center + np.int(y / 2)
             elif y == 48:
                 y_start = y_center + np.int(y/2)
+            else:
+                y_start = y_center
+
 
             # y_stop = height - 150  # for bonnet
             # if y <= 128:
@@ -162,7 +165,7 @@ class WindowBoxes(object):
             #                        xy_window=xy_window, xy_overlap=xy_overlap)
             # adjusting these windows to fit the project video
             windows = slide_window(height, width,
-                                   x_start_stop=[x_center+96,
+                                   x_start_stop=[x_center+32,
                                                  x_center + np.int(x * xc)],
                                    y_start_stop=[y_start,
                                                  y_center + np.int(y * yc)],
@@ -172,12 +175,12 @@ class WindowBoxes(object):
         sz_dict = WindowBoxes._spatial_sizes_dict()
 
         window_dict = {}
-        window_dict["tiny"] = find_windows(
-            height, width, xc=25, yc=8, xy_window=sz_dict['tiny'],
-            xy_overlap=(0.5, 0.5))
+        # window_dict["tiny"] = find_windows(
+        #     height, width, xc=25, yc=8, xy_window=sz_dict['tiny'],
+        #     xy_overlap=(0.5, 0.5))
         window_dict["small"] = find_windows(
             height, width, xc=17, yc=4, xy_window=sz_dict['small'],
-            xy_overlap=(0.7, 0.7))
+            xy_overlap=(0.7, 0.5))
         window_dict["smallish"] = find_windows(
             height, width, xc=9, yc=2.5, xy_window=sz_dict['smallish'],
             xy_overlap=(0.8, 0.8))
@@ -187,9 +190,9 @@ class WindowBoxes(object):
         # window_dict["medium"] = find_windows(
         #     height, width, xc=4, yc=1.25, xy_window=sz_dict['medium'],
         #     xy_overlap=(0.9, 0.8))
-        # window_dict["large"] = find_windows(
-        # height, width, xc=1.5, yc=1, xy_window=sz_dict['large'],
-        # xy_overlap=(0.7,0.6))
+        window_dict["large"] = find_windows(
+            height, width, xc=4.5, yc=2, xy_window=sz_dict['large'],
+            xy_overlap=(0.7, 0.7))
         # window_dict["max"] = find_windows(
         # height, width, xc=1.9, yc=1, xy_window=sz_dict['max'],
         # xy_overlap=(0.6,0.6))
@@ -210,6 +213,6 @@ class WindowBoxes(object):
         sz_dict["small"] = (32, 32)
         sz_dict["smallish"] = (48, 48)
         sz_dict["medium"] = (64, 64)
-        sz_dict["large"] = (256, 256)
+        sz_dict["large"] = (128, 128)
         sz_dict["max"] = (320, 320)
         return sz_dict
